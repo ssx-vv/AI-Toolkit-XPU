@@ -208,10 +208,9 @@ export default function TrainingForm() {
                 options={gpuList.map((gpu: any) => ({ value: `${gpu.index}`, label: `GPU #${gpu.index}` }))}
               />
             </div>
-            <div className="hidden md:block mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6"></div>
           </>
         )}
-        
+
         {!showAdvancedView && (
           <>
             {/* 任务类型选择：保持手机端显示，但进一步收窄宽度避免顶栏拥挤 */}
@@ -240,19 +239,31 @@ export default function TrainingForm() {
                   }
                   setJobConfig(value, 'config.process[0].type');
                 }}
-              options={jobTypeOptions}
+                options={jobTypeOptions}
               />
             </div>
             <div className="mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6 hidden sm:block"></div>
           </>
         )}
-<div className="hidden sm:block">
+
+        {!showAdvancedView && (<div className="hidden sm:block">
           <SelectInput
             value={`${gpuIDs}`}
             onChange={value => setGpuIDs(value)}
             options={gpuList.map((gpu: any) => ({ value: `${gpu.index}`, label: `GPU #${gpu.index}` }))}
           />
-        </div>
+        </div>)
+        }
+        {showAdvancedView && (
+       
+            <div className="hidden md:block">
+              <Button className="text-gray-200 bg-gray-800 sm:text-sm px-3 py-1 rounded-md" onClick={handleImportConfig}>
+                导入任务
+              </Button>
+            </div>
+     
+        )}
+          
         <div className="pr-2">
           <Button
             // 切换视图按钮：移动端缩小字号与内边距并保持不换行
@@ -262,20 +273,7 @@ export default function TrainingForm() {
             {showAdvancedView ? '显示简易视图' : '显示高级视图'}
           </Button>
         </div>
-        
-    
       
-        {showAdvancedView && (
-          <>
-            <div className="hidden sm:block mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6"></div>
-            <div className="hidden md:block">
-              <Button className="text-gray-200 bg-gray-800 sm:text-sm px-3 py-1 rounded-md" onClick={handleImportConfig}>
-                导入任务
-              </Button>
-            </div>
-          </>
-        )}
-        <div className="hidden md:block mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6"></div>
         <div>
           <Button
             // 保存/创建按钮：同样缩小移动端尺寸并保持不换行
