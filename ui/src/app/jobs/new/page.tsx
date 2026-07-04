@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { defaultJobConfig, defaultDatasetConfig, migrateJobConfig } from './jobConfig';
 import { jobTypeOptions } from './options';
@@ -19,6 +19,7 @@ import SimpleJob from './SimpleJob';
 import AdvancedJob from './AdvancedJob';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { apiClient } from '@/utils/api';
+import YAML from 'yaml';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -36,6 +37,12 @@ export default function TrainingForm() {
 
   const [jobConfig, setJobConfig] = useNestedState<JobConfig>(objectCopy(defaultJobConfig));
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportConfig = () => {
+    fileInputRef.current?.click();
+  };
+
 
   useEffect(() => {
     if (!isSettingsLoaded) return;
@@ -133,6 +140,43 @@ export default function TrainingForm() {
         }, 2000),
       );
   };
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = reader.result as string;
+        let parsed: any;
+        if (file.name.endsWith('.json') || file.name.endsWith('.jsonc')) {
+          parsed = JSON.parse(text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ''));
+        } else {
+          parsed = YAML.parse(text);
+        }
+
+        // Set required fields (same pattern as AdvancedJob.handleChange)
+        try {
+          parsed.config.process[0].sqlite_db_path = './aitk_db.db';
+          parsed.config.process[0].training_folder = settings.TRAINING_FOLDER;
+          parsed.config.process[0].device = 'cuda';
+          parsed.config.process[0].performance_log_every = 10;
+        } catch (err) {
+          console.warn('Could not set required fields on imported config:', err);
+        }
+
+        migrateJobConfig(parsed);
+        setJobConfig(parsed);
+      } catch (err) {
+        console.error('Failed to parse config file:', err);
+        alert('Failed to parse config file. Please check the file format.');
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset so the same file can be re-imported
+    e.target.value = '';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,6 +211,7 @@ export default function TrainingForm() {
             <div className="hidden md:block mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6"></div>
           </>
         )}
+        
         {!showAdvancedView && (
           <>
             {/* 任务类型选择：保持手机端显示，但进一步收窄宽度避免顶栏拥挤 */}
@@ -195,13 +240,22 @@ export default function TrainingForm() {
                   }
                   setJobConfig(value, 'config.process[0].type');
                 }}
-                options={jobTypeOptions}
+                options={[
+  { value: 'diffusion_trainer', label: 'LoRA Trainer' },
+  { value: 'concept_slider', label: 'Concept Slider' },
+]}
               />
             </div>
             <div className="mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6 hidden sm:block"></div>
           </>
         )}
-
+<div className="hidden sm:block">
+          <SelectInput
+            value={`${gpuIDs}`}
+            onChange={value => setGpuIDs(value)}
+            options={gpuList.map((gpu: any) => ({ value: `${gpu.index}`, label: `GPU #${gpu.index}` }))}
+          />
+        </div>
         <div className="pr-2">
           <Button
             // 切换视图按钮：移动端缩小字号与内边距并保持不换行
@@ -211,6 +265,20 @@ export default function TrainingForm() {
             {showAdvancedView ? '显示简易视图' : '显示高级视图'}
           </Button>
         </div>
+        
+    
+      
+        {showAdvancedView && (
+          <>
+            <div className="hidden sm:block mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6"></div>
+            <div className="hidden md:block">
+              <Button className="text-gray-200 bg-gray-800 sm:text-sm px-3 py-1 rounded-md" onClick={handleImportConfig}>
+                导入任务
+              </Button>
+            </div>
+          </>
+        )}
+        <div className="hidden md:block mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6"></div>
         <div>
           <Button
             // 保存/创建按钮：同样缩小移动端尺寸并保持不换行
@@ -222,7 +290,13 @@ export default function TrainingForm() {
           </Button>
         </div>
       </TopBar>
-
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".yaml,.yml,.json,.jsonc"
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+      />
       {showAdvancedView ? (
         <div className="pt-[48px] absolute top-0 left-0 w-full h-full overflow-auto">
           <AdvancedJob
