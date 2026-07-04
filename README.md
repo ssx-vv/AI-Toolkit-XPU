@@ -7,8 +7,9 @@
 > 本项目是基于[（I卡）AI-Toolkit安装教程｜ARC.AI.Next｜腾讯频道](https://pd.qq.com/g/mojr1c1n4v/post/B_6f843f69d1e10a001441152196989399570X60)  进行二次开发。
 
 ## 特别说明
-- 项目是利用AI开发服务于intel显卡，其他类型显卡暂不支持。
+- 项目用于intel显卡，其他类型显卡暂不支持。
 - 测试设备：Arc A770 16G + 32G内存
+
 ### 原有支持项
 - lodestones/Chroma1-Base
 - ostris/Flex.1-alpha
@@ -35,8 +36,8 @@
 - ai-toolkit/Wan2.2-I2V-A14B-Diffusers-bf16
 - ai-toolkit/Wan2.2-I2V-A14B-Diffusers-bf16
 - Wan-AI/Wan2.2-TI2V-5B-Diffusers
-  
-### 以下是在原有的基础上新增的支持
+
+### 在原有的基础上新增的支持
 - Flux.2-klein-base-4B
 - Flux.2-klein-base-9B(未测试)
 
@@ -50,7 +51,7 @@
 
 - Python ≥ 3.10
 - Git（用于拉取仓库）
-- NVIDIA GPU（显存需满足你的训练或推理需求）
+- Intel GPU（显存需满足你的训练或推理需求）
 - Python 虚拟环境（建议）
 - Node.js ≥ 18（用于运行 Web UI）
 
@@ -81,19 +82,12 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-### 3）安装 PyTorch（示例，CUDA 12.6 对应版本）
 
-根据你的 CUDA / 显卡环境调整版本。以下为参考示例：
-
-```bash
-pip install --no-cache-dir torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu126
-```
-
-### 4）安装项目依赖
-
+### 3）安装项目依赖
 ```bash
 pip install -r requirements.txt
 ```
+
 
 ## 运行 UI（中文界面）
 
