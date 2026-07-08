@@ -75,10 +75,9 @@ def apply_rotary_emb(
     """
     Apply rotary embeddings to input tensors using the given frequency tensor.
 
-    Uses real-number operations throughout for broad device compatibility (XPU,
-    MPS, CUDA, CPU).  The ``use_real=False`` branch avoids
-    ``torch.view_as_complex`` / ``torch.view_as_real`` which are unreliable on
-    non-CUDA backends; it performs the equivalent rotation with real arithmetic.
+    Boogu always calls this with ``use_real=False`` (the Lumina-style complex
+    path): ``freqs_cis`` is a complex tensor and ``x`` is reinterpreted as
+    complex, multiplied, and returned as real.
     """
     if use_real:
         cos, sin = freqs_cis  # [S, D]
@@ -103,20 +102,11 @@ def apply_rotary_emb(
 
         return out
     else:
-        # Lumina / Boogu complex-rotary path, implemented with real-number ops
-        # so it works on XPU and other non-CUDA backends where
-        # torch.view_as_complex / torch.view_as_real are unreliable.
-        # freqs_cis: (S, D) complex -> extract cos/sin via .real/.imag
-        freqs = freqs_cis.unsqueeze(2)  # (S, 1, D) complex
-        cos = freqs.real  # (S, 1, D) real -- cosine component
-        sin = freqs.imag  # (S, 1, D) real -- sine component
+        # used for lumina / boogu
+        x_rotated = torch.view_as_complex(
+            x.float().reshape(*x.shape[:-1], x.shape[-1] // 2, 2)
+        )
+        freqs_cis = freqs_cis.unsqueeze(2)
+        x_out = torch.view_as_real(x_rotated * freqs_cis).flatten(3)
 
-        x_half = x.float().reshape(*x.shape[:-1], x.shape[-1] // 2, 2)
-        x_real = x_half[..., 0]  # (B, H, S, D//2)
-        x_imag = x_half[..., 1]  # (B, H, S, D//2)
-
-        out_real = x_real * cos - x_imag * sin
-        out_imag = x_real * sin + x_imag * cos
-
-        x_out = torch.stack([out_real, out_imag], dim=-1).flatten(-2)
         return x_out.type_as(x)

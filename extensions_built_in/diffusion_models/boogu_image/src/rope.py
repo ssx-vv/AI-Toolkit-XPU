@@ -2,8 +2,8 @@
 # Original work: Copyright 2025 BAAI / OmniGen2 / HuggingFace. Apache-2.0.
 #
 # Only the double-stream rotary embedder (the one the transformer uses) and the
-# ``get_freqs_cis`` precompute helper are kept. MPS and XPU device fallbacks
-# are included for broad hardware compatibility.
+# ``get_freqs_cis`` precompute helper are kept. The MPS-specific branch is
+# preserved verbatim.
 from typing import List, Tuple
 
 import torch
@@ -17,13 +17,7 @@ def get_freqs_cis(
 ) -> List[torch.Tensor]:
     """Precompute the per-axis rotary frequency tables (done once per resolution)."""
     freqs_cis = []
-    # XPU and MPS only support float32; CUDA/CPU can use float64 for precision.
-    if torch.backends.mps.is_available() or (
-        hasattr(torch, "xpu") and torch.xpu.is_available()
-    ):
-        freqs_dtype = torch.float32
-    else:
-        freqs_dtype = torch.float64
+    freqs_dtype = torch.float32 if torch.backends.mps.is_available() else torch.float64
     for d, e in zip(axes_dim, axes_lens):
         emb = get_1d_rotary_pos_embed(d, e, theta=theta, freqs_dtype=freqs_dtype)
         freqs_cis.append(emb)
@@ -52,8 +46,7 @@ class BooguImageDoubleStreamRotaryPosEmbed(nn.Module):
 
     def _get_freqs_cis(self, freqs_cis, ids: torch.Tensor) -> torch.Tensor:
         device = ids.device
-        # MPS and XPU need CPU fallback for torch.gather with complex indexing.
-        if ids.device.type in ("mps", "xpu"):
+        if ids.device.type == "mps":
             ids = ids.to("cpu")
 
         result = []
