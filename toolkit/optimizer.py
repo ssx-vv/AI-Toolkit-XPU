@@ -61,51 +61,18 @@ def get_optimizer(
 
         optimizer = Adam8bit(params, lr=learning_rate, eps=1e-6, decouple=True, **optimizer_params)
     elif lower_type.endswith("8bit"):
-        # Force fallback on XPU as bitsandbytes requires CUDA
-        from toolkit import device_utils
-        if device_utils.is_xpu_available():
-            print("Bitsandbytes 8-bit optimizers are not supported on XPU. Falling back to standard optimizer.")
-            if lower_type == "adam8bit":
-                return torch.optim.Adam(params, lr=learning_rate, eps=1e-6, **optimizer_params)
-            elif lower_type == "adamw8bit":
-                return torch.optim.AdamW(params, lr=learning_rate, eps=1e-6, **optimizer_params)
-            elif lower_type == "lion8bit":
-                try:
-                    from lion_pytorch import Lion
-                    return Lion(params, lr=learning_rate, **optimizer_params)
-                except ImportError:
-                    raise ImportError("Please install lion_pytorch to use Lion optimizer -> pip install lion-pytorch")
-            else:
-                # Fallback for ademamix or unknown - generic AdamW
-                return torch.optim.AdamW(params, lr=learning_rate, eps=1e-6, **optimizer_params)
+        import bitsandbytes
 
-        try:
-            import bitsandbytes
-            if lower_type == "adam8bit":
-                return bitsandbytes.optim.Adam8bit(params, lr=learning_rate, eps=1e-6, **optimizer_params)
-            if lower_type == "ademamix8bit":
-                return bitsandbytes.optim.AdEMAMix8bit(params, lr=learning_rate, eps=1e-6, **optimizer_params)
-            elif lower_type == "adamw8bit":
-                return bitsandbytes.optim.AdamW8bit(params, lr=learning_rate, eps=1e-6, **optimizer_params)
-            elif lower_type == "lion8bit":
-                return bitsandbytes.optim.Lion8bit(params, lr=learning_rate, **optimizer_params)
-            else:
-                raise ValueError(f'Unknown optimizer type {optimizer_type}')
-        except ImportError:
-            print("Bitsandbytes not found or not supported. Falling back to standard optimizer.")
-            if lower_type == "adam8bit":
-                return torch.optim.Adam(params, lr=learning_rate, eps=1e-6, **optimizer_params)
-            elif lower_type == "adamw8bit":
-                return torch.optim.AdamW(params, lr=learning_rate, eps=1e-6, **optimizer_params)
-            elif lower_type == "lion8bit":
-                try:
-                    from lion_pytorch import Lion
-                    return Lion(params, lr=learning_rate, **optimizer_params)
-                except ImportError:
-                    raise ImportError("Please install lion_pytorch to use Lion optimizer -> pip install lion-pytorch")
-            else:
-                # Fallback for ademamix or unknown - generic AdamW
-                return torch.optim.AdamW(params, lr=learning_rate, eps=1e-6, **optimizer_params)
+        if lower_type == "adam8bit":
+            return bitsandbytes.optim.Adam8bit(params, lr=learning_rate, eps=1e-6, **optimizer_params)
+        if lower_type == "ademamix8bit":
+            return bitsandbytes.optim.AdEMAMix8bit(params, lr=learning_rate, eps=1e-6, **optimizer_params)
+        elif lower_type == "adamw8bit":
+            return bitsandbytes.optim.AdamW8bit(params, lr=learning_rate, eps=1e-6, **optimizer_params)
+        elif lower_type == "lion8bit":
+            return bitsandbytes.optim.Lion8bit(params, lr=learning_rate, **optimizer_params)
+        else:
+            raise ValueError(f'Unknown optimizer type {optimizer_type}')
     elif lower_type == 'adam':
         optimizer = torch.optim.Adam(params, lr=float(learning_rate), eps=1e-6, **optimizer_params)
     elif lower_type == 'adamw':
@@ -130,6 +97,12 @@ def get_optimizer(
     elif lower_type == 'automagic':
         from toolkit.optimizers.automagic import Automagic
         optimizer = Automagic(params, lr=float(learning_rate), **optimizer_params)
+    elif lower_type == 'automagic2':
+        from toolkit.optimizers.automagic2 import Automagic2
+        optimizer = Automagic2(params, lr=float(learning_rate), **optimizer_params)
+    elif lower_type == 'automagic3':
+        from toolkit.optimizers.automagic3 import Automagic3
+        optimizer = Automagic3(params, lr=float(learning_rate), **optimizer_params)
     else:
         raise ValueError(f'Unknown optimizer type {optimizer_type}')
     return optimizer
