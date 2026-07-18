@@ -41,6 +41,7 @@ from torchvision.transforms import functional as TF
 from toolkit.accelerator import get_accelerator, unwrap_model
 from typing import TYPE_CHECKING
 from toolkit.print import print_acc
+from toolkit.basic import flush
 
 if TYPE_CHECKING:
     from toolkit.lora_special import LoRASpecialNetwork
@@ -88,11 +89,6 @@ class BlankNetwork:
 
     def train(self):
         pass
-
-
-def flush():
-    torch.cuda.empty_cache()
-    gc.collect()
 
 
 UNET_IN_CHANNELS = 4  # Stable Diffusion の in_channels は 4 で固定。XLも同じ。
@@ -185,6 +181,21 @@ class BaseModel:
         self.has_multiple_control_images = False
         # do not resize control images
         self.use_raw_control_images = False
+        # defines if the model supports model paths. Only some will
+        self.supports_model_paths = False
+        
+        # use new lokr format (default false for old models for backwards compatibility)
+        self.use_old_lokr_format = True
+        
+        # when padding to make batch size work, which side padding to use, right or left
+        # some llms need left side padding, others need right side
+        self.te_padding_side = "right"
+        
+        # can be used on models to invalidate cache if things change.
+        self.latent_space_version = None
+        
+        # if a mask is passed, do the loss with the mask. May be set false for models that use a mask for other reasons.
+        self.do_masked_loss = True
 
     # properties for old arch for backwards compatibility
     @property
@@ -247,6 +258,10 @@ class BaseModel:
     @property
     def is_lumina2(self):
         return self.arch == 'lumina2'
+    
+    @property
+    def text_embedding_space_version(self):
+        return self.arch
 
     def get_bucket_divisibility(self):
         if self.vae is None:
@@ -419,7 +434,7 @@ class BaseModel:
                 if network is not None:
                     assert network.is_active
 
-                for i in tqdm(range(len(image_configs)), desc=f"Generating Images", leave=False):
+                for i in tqdm(range(len(image_configs)), desc=f"Generating Samples", leave=True):
                     gen_config = image_configs[i]
 
                     extra = {}
@@ -1117,6 +1132,10 @@ class BaseModel:
         latents = latents.to(device, dtype=dtype)
 
         return latents
+    
+    def encode_audio(self, audio_data_list):
+        # audio_date_list is a list of {"waveform": waveform[C, L], "sample_rate": int(sample_rate)}
+        raise NotImplementedError("Audio encoding not implemented for this model.")
 
     def decode_latents(
             self,
@@ -1575,11 +1594,21 @@ class BaseModel:
     def get_transformer_block_names(self) -> Optional[List[str]]:
         # override in child classes to get transformer block names for lora targeting
         return None
+
+    def get_quantization_exclude_modules(self) -> Optional[List[str]]:
+        # override in child classes to keep sensitive modules in full precision when
+        # quantizing. Returns fnmatch patterns matched against the transformer's module
+        # names (e.g. "model.x_embedder*").
+        return None
     
     def get_base_model_version(self) -> str:
         # override in child classes to get the base model version
-        return "unknown"
+        return self.arch if self.arch is not None else 'unknown'
 
     def get_model_to_train(self):
         # called to get model to attach LoRAs to. Can be overridden in child classes
         return self.unet
+    
+    def scale_loss(self, loss):
+        # called to get the loss scaler for the model. Can be overridden in child classes
+        return loss

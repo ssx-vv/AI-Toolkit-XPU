@@ -30,6 +30,7 @@ LINEAR_MODULES = [
     'Linear',
     'LoRACompatibleLinear',
     'QLinear'
+    'OstrisLinear',
     # 'GroupNorm',
 ]
 CONV_MODULES = [
@@ -157,7 +158,7 @@ class ExtractableModuleMixin:
 
         # set up alphas
         self.alpha = (self.alpha * 0) + down_weight.shape[0]
-        self.scale = self.alpha / self.lora_dim
+        self.scale = float(self.alpha.detach().float().item()) / self.lora_dim
 
         # assign them
 
@@ -546,7 +547,8 @@ class ToolkitNetworkMixin:
 
             new_save_dict = {}
             for key, value in save_dict.items():
-                if key.endswith('.alpha'):
+                # lokr needs alpha
+                if key.endswith('.alpha') and self.network_type.lower() != "lokr":
                     continue
                 new_key = key
                 new_key = new_key.replace('lora_down', 'lora_A')
@@ -632,7 +634,7 @@ class ToolkitNetworkMixin:
                 # lora_down = lora_A
                 # lora_up = lora_B
                 # no alpha
-                if load_key.endswith('.alpha'):
+                if load_key.endswith('.alpha') and self.network_type.lower() != "lokr":
                     continue
                 load_key = load_key.replace('lora_A', 'lora_down')
                 load_key = load_key.replace('lora_B', 'lora_up')
@@ -640,6 +642,19 @@ class ToolkitNetworkMixin:
                 load_key = load_key.replace('.', '$$')
                 load_key = load_key.replace('$$lora_down$$', '.lora_down.')
                 load_key = load_key.replace('$$lora_up$$', '.lora_up.')
+                # full weight modules store their delta as `.diff` / `.diff_b` (anchored at the
+                # end so this is a no-op for any non-full-weight key)
+                if load_key.endswith('$$diff'):
+                    load_key = load_key[:-len('$$diff')] + '.diff'
+                elif load_key.endswith('$$diff_b'):
+                    load_key = load_key[:-len('$$diff_b')] + '.diff_b'
+
+                # patch lokr, not sure why we need to but whatever
+                if self.network_type.lower() == "lokr":
+                    load_key = load_key.replace('$$lokr_w1', '.lokr_w1')
+                    load_key = load_key.replace('$$lokr_w2', '.lokr_w2')
+                    if load_key.endswith('$$alpha'):
+                        load_key = load_key[:-7] + '.alpha'
             
             if self.network_type.lower() == "lokr":
                 # lora_transformer_transformer_blocks_7_attn_to_v.lokr_w1 to lycoris_transformer_blocks_7_attn_to_v.lokr_w1
@@ -735,6 +750,10 @@ class ToolkitNetworkMixin:
             dtype = first_module.lokr_w1_a.dtype
             if hasattr(first_module.lokr_w1_a, '_memory_management_device'):
                 device = first_module.lokr_w1_a._memory_management_device
+        elif hasattr(first_module, 'diff'):
+            # full weight module
+            device = first_module.diff.device
+            dtype = first_module.diff.dtype
         else:
             raise ValueError("Unknown module type")
         with torch.no_grad():

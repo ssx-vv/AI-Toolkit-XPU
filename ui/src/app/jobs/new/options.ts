@@ -699,6 +699,7 @@ export const groupedModelOptions: GroupedSelectOption[] = modelArchs.reduce((acc
 export const quantizationOptions: SelectOption[] = [
   { value: '', label: '- NONE -' },
   { value: 'qfloat8', label: 'float8 (default)' },
+  { value: 'convrot8', label: '8bit convrot' },
   { value: 'uint7', label: '7 bit' },
   { value: 'uint6', label: '6 bit' },
   { value: 'uint5', label: '5 bit' },
